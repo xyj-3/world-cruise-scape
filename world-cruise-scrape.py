@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 # The page itself was generally well-structured for a web page, making it easier to parse. There were some
 # inconsistencies.
 # No price: Princess Cruises - Coral Princess (2024)
-# There were some cases unable to be captured by generalized regex, processed by manual dicts
+# No days: Oceania Cruises (2025)
 # -------------------------------------------------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
@@ -172,3 +172,21 @@ if __name__ == "__main__":
     # wrapped_json_data = '\n'.join(
     #     [line for string in json_data.split('\n') for line in textwrap.wrap(string, width=80)])
     # print(wrapped_json_data)
+
+    # some statistics
+    prices = [{key: int("".join(filter(str.isdigit, cruise["price"])))} for key, cruise in data.items() if cruise[
+        "price"] != ""]
+    print("lowest price:", min(prices, key=lambda x: list(x.values())[0]))
+    print("highest price:", max(prices, key=lambda x: list(x.values())[0]))
+
+    prices_per_day = [{key: int("".join(filter(str.isdigit, cruise["price"]))) / cruise["days"]} for key, cruise in
+                      data.items() if cruise["price"] != "" and cruise["days"] is not None]
+    print("lowest price per day:", min(prices_per_day, key=lambda x: list(x.values())[0]))
+    print("highest price per day:", max(prices_per_day, key=lambda x: list(x.values())[0]))
+
+    cruise_lengths = [{key: cruise["days"]} for key, cruise in data.items() if cruise["days"] is not None]
+    print("shortest cruise:", min(cruise_lengths, key=lambda x: list(x.values())[0]))
+    print("longest cruise:", max(cruise_lengths, key=lambda x: list(x.values())[0]))
+
+    segments = [{key: len(cruise["segments"])} for key, cruise in data.items()]
+    print("most segments:", max(segments, key=lambda x: list(x.values())[0]))
