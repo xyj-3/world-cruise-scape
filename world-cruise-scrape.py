@@ -3,18 +3,20 @@
 import json
 import re
 import requests
+import statistics
 import textwrap
-from datetime import datetime
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # The purpose of this program is to reference the article at https://www.cruisecritic.com/articles.cfm?ID=514 and
-# extract the useful information into a JSON structure. It requires python 3.6 and bs4.
+# extract the useful information into a JSON structure and run some statistics. It requires bs4.
 
-# The page itself was generally well-structured for a web page, making it easier to parse. There were some
-# inconsistencies.
+# The page itself was well-structured, making it easier to parse, but there were some missing price, days, and segment
+# info.
 # No price: Princess Cruises - Coral Princess (2024)
 # No days: Oceania Cruises (2025)
+# No segments: Quite a few, unlisted here.
 # -------------------------------------------------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
@@ -52,7 +54,7 @@ if __name__ == "__main__":
         "Princess Cruises - Island Princess (2024)": ["January 4, 2024", "January 18, 2024"]
     }
 
-    data = {}  # data to be saved as json
+    data = {"cruises": []}  # data to be saved as json
 
     for cruise_heading in cruise_headings:  # cruise_heading is a bs4 Tag
         # THE CRUISE
@@ -61,7 +63,7 @@ if __name__ == "__main__":
         # r"^202[3-5] World Cruises" in its string and get the year from that
         if cruise_heading.string in title_exception_dict:
             cruise_heading.string = title_exception_dict[cruise_heading.string]
-        title = f"{cruise_heading.string} ({year_string})"
+        title = "{} ({})".format(cruise_heading.string, year_string)
         # print(title)
 
         # DESCRIPTION
@@ -152,7 +154,8 @@ if __name__ == "__main__":
         price = match.group(0).replace(" ", "") if match else ""
 
         # add entry to the data
-        data[title] = {
+        data["cruises"].append({
+            "name": title,
             "price": price,
             "days": days,
             "description": description,
@@ -160,7 +163,7 @@ if __name__ == "__main__":
             "dep_date": departure_date,
             "ship": ship_name,
             "segments": segments_dict,
-        }
+        })
 
     # dump the info as a JSON file
     out_file = "world-cruises.json"
@@ -174,19 +177,26 @@ if __name__ == "__main__":
     # print(wrapped_json_data)
 
     # some statistics
-    prices = [{key: int("".join(filter(str.isdigit, cruise["price"])))} for key, cruise in data.items() if cruise[
-        "price"] != ""]
-    print("lowest price:", min(prices, key=lambda x: list(x.values())[0]))
-    print("highest price:", max(prices, key=lambda x: list(x.values())[0]))
+    min_price = min(data["cruises"], key=lambda cruise: int("".join(filter(str.isdigit, cruise["price"]))) if cruise["price"] != "" else float("inf"))
+    max_price = max(data["cruises"], key=lambda cruise: int("".join(filter(str.isdigit, cruise["price"]))) if cruise["price"] != "" else float("-inf"))
+    median_price = statistics.median([int("".join(filter(str.isdigit, cruise["price"]))) for cruise in data["cruises"] if cruise["price"] != ""])
+    print("lowest price: {{{}: {}}}".format(min_price["name"], min_price["price"]))
+    print("highest price: {{{}: {}}}".format(max_price["name"], max_price["price"]))
+    print("median price: ${:,.0f}\n".format(median_price))
 
-    prices_per_day = [{key: int("".join(filter(str.isdigit, cruise["price"]))) / cruise["days"]} for key, cruise in
-                      data.items() if cruise["price"] != "" and cruise["days"] is not None]
-    print("lowest price per day:", min(prices_per_day, key=lambda x: list(x.values())[0]))
-    print("highest price per day:", max(prices_per_day, key=lambda x: list(x.values())[0]))
+    min_ppd = min(data["cruises"], key=lambda cruise: int("".join(filter(str.isdigit, cruise["price"]))) / cruise["days"] if cruise["price"] != "" and cruise["days"] is not None else float("inf"))
+    max_ppd = max(data["cruises"], key=lambda cruise: int("".join(filter(str.isdigit, cruise["price"]))) / cruise["days"] if cruise["price"] != "" and cruise["days"] is not None else float("-inf"))
+    median_ppd = statistics.median([int("".join(filter(str.isdigit, cruise["price"]))) / cruise["days"] for cruise in data["cruises"] if cruise["price"] != "" and cruise["days"] is not None])
+    print("lowest price per day: {{{}: ${:.2f}}}".format(min_ppd["name"], int("".join(filter(str.isdigit, min_ppd["price"]))) / min_ppd["days"]))
+    print("highest price per day: {{{}: ${:.2f}}}".format(max_ppd["name"], int("".join(filter(str.isdigit, max_ppd["price"]))) / max_ppd["days"]))
+    print("median price per day: ${:,.2f}\n".format(median_ppd))
 
-    cruise_lengths = [{key: cruise["days"]} for key, cruise in data.items() if cruise["days"] is not None]
-    print("shortest cruise:", min(cruise_lengths, key=lambda x: list(x.values())[0]))
-    print("longest cruise:", max(cruise_lengths, key=lambda x: list(x.values())[0]))
+    min_days = min(data["cruises"], key=lambda cruise: cruise["days"] if cruise["days"] is not None else float("inf"))
+    max_days = max(data["cruises"], key=lambda cruise: cruise["days"] if cruise["days"] is not None else float("-inf"))
+    median_days = statistics.median([cruise["days"] for cruise in data["cruises"] if cruise["days"] is not None])
+    print("shortest cruise: {{{}: {}}}".format(min_days["name"], min_days["days"]))
+    print("longest cruise: {{{}: {}}}".format(max_days["name"], max_days["days"]))
+    print("median length: {:.0f}\n".format(median_days))
 
-    segments = [{key: len(cruise["segments"])} for key, cruise in data.items()]
-    print("most segments:", max(segments, key=lambda x: list(x.values())[0]))
+    max_segments = max(data["cruises"], key=lambda cruise: len(cruise["segments"]))
+    print("most segments: {{{}: {}}}".format(max_segments["name"], len(max_segments["segments"])))
